@@ -39,14 +39,27 @@ def run(args: DictConfig):
     # ------------------
     #       Model
     # ------------------
-    model = BasicConvClassifier(
-        train_set.num_classes, train_set.seq_len, train_set.num_channels
-    ).to(args.device)
+    class BasicConvClassifier(nn.Module):
+    def __init__(self, num_classes, seq_len, num_channels):
+        super(BasicConvClassifier, self).__init__()
+        self.conv1 = nn.Conv2d(in_channels=1, out_channels=32, kernel_size=(3, 3))
+        self.bn1 = nn.BatchNorm2d(32)  # バッチ正規化
+        self.pool = nn.MaxPool2d((2, 2))
+        self.fc1 = nn.Linear(32 * (seq_len // 2) * (num_channels // 2), num_classes)
+
+    def forward(self, x):
+        x = self.pool(F.relu(self.bn1(self.conv1(x))))
+        x = x.view(-1, 32 * (x.size(2) // 2) * (x.size(3) // 2))
+        x = self.fc1(x)
+        return x
 
     # ------------------
     #     Optimizer
     # ------------------
+    from torch.optim.lr_scheduler import StepLR
+
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+    scheduler = StepLR(optimizer, step_size=10, gamma=0.1)  # 10エポックごとに学習率を10分の1に減少
 
     # ------------------
     #   Start training
@@ -62,6 +75,8 @@ def run(args: DictConfig):
         train_loss, train_acc, val_loss, val_acc = [], [], [], []
         
         model.train()
+        optimizer.step()
+        scheduler.step()
         for X, y, subject_idxs in tqdm(train_loader, desc="Train"):
             X, y = X.to(args.device), y.to(args.device)
 
