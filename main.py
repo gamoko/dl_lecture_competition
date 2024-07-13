@@ -35,8 +35,8 @@ class ImprovedConvClassifier(nn.Module):
 @hydra.main(version_base=None, config_path="configs", config_name="config")
 def run(args: DictConfig):
     # デフォルト値の設定
-    seq_len = getattr(args, "seq_len", 128)
-    num_channels = getattr(args, "num_channels", 64)
+    seq_len = args.get("seq_len", 128)
+    num_channels = args.get("num_channels", 64)
     
     set_seed(args.seed)
     logdir = hydra.core.hydra_config.HydraConfig.get().runtime.output_dir
@@ -156,7 +156,6 @@ def run(args: DictConfig):
     preds = torch.cat(preds, dim=0).numpy()
     np.save(os.path.join(logdir, "submission"), preds)
     cprint(f"Submission {preds.shape} saved at {logdir}", "cyan")
-
 
 if __name__ == "__main__":
     run()
