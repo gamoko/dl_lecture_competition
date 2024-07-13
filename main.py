@@ -1,4 +1,5 @@
 import os
+import sys
 import numpy as np
 import torch
 import torch.nn as nn
@@ -14,54 +15,41 @@ from skopt import gp_minimize
 from skopt.space import Real, Integer
 
 from src.datasets import ThingsMEGDataset
+from src.models import BasicConvClassifier
 from src.utils import set_seed
 
-
 class ImprovedConvClassifier(nn.Module):
-    def __init__(self, num_classes, seq_len, num_channels, dropout_ratio=0.5):
+    def __init__(self, num_classes, seq_len, num_channels):
         super(ImprovedConvClassifier, self).__init__()
         self.conv1 = nn.Conv2d(in_channels=1, out_channels=32, kernel_size=(3, 3))
         self.bn1 = nn.BatchNorm2d(32)
         self.pool = nn.MaxPool2d((2, 2))
-        self.dropout = Dropout(dropout_ratio)
         self.fc1 = nn.Linear(32 * (seq_len // 2) * (num_channels // 2), num_classes)
 
     def forward(self, x):
         x = self.pool(F.relu(self.bn1(self.conv1(x))))
-        x = self.dropout(x)
         x = x.view(-1, 32 * (x.size(2) // 2) * (x.size(3) // 2))
         x = self.fc1(x)
         return x
 
-class Dropout(nn.Module):
-    def __init__(self, dropout_ratio=0.5):
-        super().__init__()
-        self.dropout_ratio = dropout_ratio
-
-    def forward(self, x):
-        if self.training:
-            mask = torch.rand(*x.size()) > self.dropout_ratio
-            return x * mask.to(x.device)
-        else:
-            return x * (1.0 - self.dropout_ratio)
-
-
 @hydra.main(version_base=None, config_path="configs", config_name="config")
 def run(args: DictConfig):
+    # デフォルト値の設定
+    seq_len = getattr(args, "seq_len", 128)
+    num_channels = getattr(args, "num_channels", 64)
+    
     set_seed(args.seed)
     logdir = hydra.core.hydra_config.HydraConfig.get().runtime.output_dir
 
     if args.use_wandb:
         wandb.init(mode="online", dir=logdir, project="MEG-classification")
 
-    # データ拡張
     train_transforms = transforms.Compose([
         transforms.RandomApply([transforms.Lambda(lambda x: x + 0.05 * torch.randn_like(x))], p=0.5),
         transforms.RandomHorizontalFlip(),
-        transforms.RandomCrop((args.seq_len, args.num_channels))
+        transforms.RandomCrop((seq_len, num_channels))
     ])
 
-    # データローダー
     loader_args = {"batch_size": args.batch_size, "num_workers": args.num_workers}
     
     train_set = ThingsMEGDataset("train", args.data_dir, transform=train_transforms)
@@ -71,10 +59,8 @@ def run(args: DictConfig):
     test_set = ThingsMEGDataset("test", args.data_dir)
     test_loader = torch.utils.data.DataLoader(test_set, shuffle=False, **loader_args)
 
-    # モデル
-    model = ImprovedConvClassifier(train_set.num_classes, train_set.seq_len, train_set.num_channels).to(args.device)
+    model = ImprovedConvClassifier(train_set.num_classes, seq_len, num_channels).to(args.device)
 
-    # ハイパーパラメータチューニング
     def objective(params):
         lr, batch_size = params
         optimizer = torch.optim.Adam(model.parameters(), lr=lr)
@@ -92,14 +78,13 @@ def run(args: DictConfig):
 
         model.eval()
         val_acc = []
-        accuracy = Accuracy(task="multiclass", num_classes=train_set.num_classes, top_k=10).to(args.device)
         for X, y, subject_idxs in val_loader:
             X, y = X.to(args.device), y.to(args.device)
             with torch.no_grad():
                 y_pred = model(X)
             val_acc.append(accuracy(y_pred, y).item())
 
-        return -np.mean(val_acc)  # Minimize negative validation accuracy
+        return -np.mean(val_acc)
 
     search_space = [Real(1e-5, 1e-2, prior='log-uniform', name='lr'),
                     Integer(16, 128, name='batch_size')]
@@ -107,18 +92,15 @@ def run(args: DictConfig):
     res = gp_minimize(objective, search_space, n_calls=30, random_state=0)
     best_lr, best_batch_size = res.x
 
-    # 最適化手法と学習率スケジューラ
     optimizer = torch.optim.Adam(model.parameters(), lr=best_lr)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
 
-    # 早期停止の設定
     early_stopping_patience = 10
     best_val_acc = 0
     epochs_no_improve = 0
 
     accuracy = Accuracy(task="multiclass", num_classes=train_set.num_classes, top_k=10).to(args.device)
 
-    # トレーニング
     for epoch in range(args.epochs):
         print(f"Epoch {epoch+1}/{args.epochs}")
         
@@ -164,7 +146,6 @@ def run(args: DictConfig):
 
         scheduler.step()
 
-    # テスト
     model.load_state_dict(torch.load(os.path.join(logdir, "model_best.pt"), map_location=args.device))
 
     preds = [] 
