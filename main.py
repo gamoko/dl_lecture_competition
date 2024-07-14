@@ -1,5 +1,4 @@
 import os
-import sys
 import numpy as np
 import torch
 import torch.nn as nn
@@ -34,9 +33,8 @@ class ImprovedConvClassifier(nn.Module):
 
 @hydra.main(version_base=None, config_path="configs", config_name="config")
 def run(args: DictConfig):
-    # デフォルト値の設定
-    seq_len = args.get("seq_len", 128)
-    num_channels = args.get("num_channels", 64)
+    seq_len = args.seq_len
+    num_channels = args.num_channels
     
     set_seed(args.seed)
     logdir = hydra.core.hydra_config.HydraConfig.get().runtime.output_dir
@@ -119,7 +117,7 @@ def run(args: DictConfig):
 
         model.eval()
         for X, y, subject_idxs in tqdm(val_loader, desc="Validation"):
-            X, y = X.to(args.device), y.to(args.device)
+            X, y = X.to(args.device), y.to.args.device
             with torch.no_grad():
                 y_pred = model(X)
             val_loss.append(F.cross_entropy(y_pred, y).item())
