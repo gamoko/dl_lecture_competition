@@ -23,10 +23,12 @@ class ImprovedConvClassifier(nn.Module):
         self.conv1 = nn.Conv2d(in_channels=1, out_channels=32, kernel_size=(3, 3))
         self.bn1 = nn.BatchNorm2d(32)
         self.pool = nn.MaxPool2d((2, 2))
+        self.dropout = nn.Dropout(p=0.5)  # Dropoutを追加
         self.fc1 = nn.Linear(32 * (seq_len // 2) * (num_channels // 2), num_classes)
 
     def forward(self, x):
         x = self.pool(F.relu(self.bn1(self.conv1(x))))
+        x = self.dropout(x)  # dropoutを適用
         x = x.view(-1, 32 * (x.size(2) // 2) * (x.size(3) // 2))
         x = self.fc1(x)
         return x
@@ -117,7 +119,7 @@ def run(args: DictConfig):
 
         model.eval()
         for X, y, subject_idxs in tqdm(val_loader, desc="Validation"):
-            X, y = X.to(args.device), y.to.args.device
+            X, y = X.to(args.device), y.to(args.device)
             with torch.no_grad():
                 y_pred = model(X)
             val_loss.append(F.cross_entropy(y_pred, y).item())
