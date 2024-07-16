@@ -119,5 +119,32 @@ def run(args: DictConfig):
         torch.save(model.state_dict(), os.path.join(logdir, "model_last.pt"))
         if args.use_wandb:
             wandb.log({
-               
+                "train_loss": np.mean(train_loss),
+                "train_acc": np.mean(train_acc),
+                "val_loss": np.mean(val_loss),
+                "val_acc": np.mean(val_acc)
+            })
+        
+        if np.mean(val_acc) > max_val_acc:
+            cprint("New best.", "cyan")
+            torch.save(model.state_dict(), os.path.join(logdir, "model_best.pt"))
+            max_val_acc = np.mean(val_acc)
+            
+    
+    # ----------------------------------
+    #  Start evaluation with best model
+    # ----------------------------------
+    model.load_state_dict(torch.load(os.path.join(logdir, "model_best.pt"), map_location=args.device))
 
+    preds = [] 
+    model.eval()
+    for X, subject_idxs in tqdm(test_loader, desc="Validation"):        
+        preds.append(model(X.to(args.device)).detach().cpu())
+        
+    preds = torch.cat(preds, dim=0).numpy()
+    np.save(os.path.join(logdir, "submission"), preds)
+    cprint(f"Submission {preds.shape} saved at {logdir}", "cyan")
+
+
+if __name__ == "__main__":
+    run()
