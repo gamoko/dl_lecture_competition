@@ -118,4 +118,6 @@ def run(args: DictConfig):
         print(f"Epoch {epoch+1}/{args.epochs} | train loss: {np.mean(train_loss):.3f} | train acc: {np.mean(train_acc):.3f} | val loss: {np.mean(val_loss):.3f} | val acc: {np.mean(val_acc):.3f}")
         torch.save(model.state_dict(), os.path.join(logdir, "model_last.pt"))
         if args.use_wandb:
-            wandb.log({"train_loss": np.mean(train_loss), "train_acc": np.
+            wandb.log({
+               
+
