@@ -47,6 +47,26 @@ def run(args: DictConfig):
     #     Optimizer
     # ------------------
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
+    # ------------------
+    #     Dropout
+    # ------------------
+    class Dropout(nn.Module):
+    """
+    http://arxiv.org/abs/1207.0580
+    """
+    def __init__(self, dropout_ratio=0.5):
+        super().__init__()
+        self.dropout_ratio = dropout_ratio
+        self.mask = None
+
+    def forward(self, x):
+        # 学習時はdropout_ratio分だけ出力をシャットアウト
+        if self.training:
+            self.mask = torch.rand(*x.size()) > self.dropout_ratio
+            return x * self.mask.to(x.device)
+        # 推論時は出力に`1.0 - self.dropout_ratio`を乗算することで学習時の出力の大きさに合わせる
+        else:
+            return x * (1.0 - self.dropout_ratio)
 
     # ------------------
     #   Start training
