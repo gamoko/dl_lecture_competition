@@ -64,10 +64,22 @@ class VQADataset(torch.utils.data.Dataset):
         self.image_dir = image_dir
         self.df = pd.read_json(df_path)
         self.answer = answer
-        answer_id = pd.read_csv("/content/dl_lecture_competition/dl_lecture_competition/data/class_mapping.csv")
-        self.answer2idx = dict(zip(answer_id["answer"], answer_id["class_id"]))
-        self.idx2answer = {v: k for k, v in self.answer2idx.items()}
 
+        # question / answerの辞書を作成
+        self.question2idx = {}
+        self.answer2idx = {}
+        self.idx2question = {}
+        self.idx2answer = {}
+
+        # 質問文に含まれる単語を辞書に追加
+        for question in self.df["question"]:
+            question = process_text(question)
+            words = question.split(" ")
+            for word in words:
+                if word not in self.question2idx:
+                    self.question2idx[word] = len(self.question2idx)
+        self.idx2question = {v: k for k, v in self.question2idx.items()}  # 逆変換用の辞書(question)
+        
         if self.answer:
             for answers in self.df["answers"]:
                 for answer in answers:
@@ -77,7 +89,9 @@ class VQADataset(torch.utils.data.Dataset):
             self.idx2answer = {v: k for k, v in self.answer2idx.items()}
 
     def update_dict(self, dataset):
+        self.question2idx = dataset.question2idx
         self.answer2idx = dataset.answer2idx
+        self.idx2question = dataset.idx2question
         self.idx2answer = dataset.idx2answer
 
     def __getitem__(self, idx):
