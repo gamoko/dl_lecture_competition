@@ -64,7 +64,7 @@ class VQADataset(torch.utils.data.Dataset):
         self.image_dir = image_dir
         self.df = pd.read_json(df_path)
         self.answer = answer
-        answer_id = pd.read_csv("/workspace/dl_lecture_competition_pub/data/class_mapping.csv")
+        answer_id = pd.read_csv("/content/dl_lecture_competition/dl_lecture_competition/data/class_mapping.csv")
         self.answer2idx = dict(zip(answer_id["answer"], answer_id["class_id"]))
         self.idx2answer = {v: k for k, v in self.answer2idx.items()}
 
@@ -283,8 +283,8 @@ def main():
         transforms.ToTensor()
     ])
 
-    train_dataset = VQADataset(df_path="/workspace/dl_lecture_competition_pub/data/train.json", image_dir="/workspace/dl_lecture_competition_pub/train", transform=transform)
-    test_dataset = VQADataset(df_path="/workspace/dl_lecture_competition_pub/data/valid.json", image_dir="/workspace/dl_lecture_competition_pub/valid", transform=transform, answer=False)
+    train_dataset = VQADataset(df_path="/content/dl_lecture_competition/dl_lecture_competition/datatrain.json", image_dir="/content/dl_lecture_competition/dl_lecture_competition/data/train", transform=transform)
+    test_dataset = VQADataset(df_path="/content/dl_lecture_competition/dl_lecture_competition/datavalid.json", image_dir="/content/dl_lecture_competition/dl_lecture_competition/data/valid", transform=transform, answer=False)
     test_dataset.update_dict(train_dataset)
 
     train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=64, shuffle=True, pin_memory=True)
